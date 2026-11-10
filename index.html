@@ -1,0 +1,803 @@
+<!DOCTYPE html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>The Obfuscation Eschewer</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&family=Spectral:ital,wght@0,500;0,600;1,400&display=swap" rel="stylesheet">
+<style>
+/* Layout: teal masthead, two-pane workbench (message left, findings right), field guide as a second view. */
+:root{
+  --bg:#eef3f3; --surface:#ffffff; --soft:#e3eeee; --ink:#0f2628; --muted:#4e6668; --line:#d1dede;
+  --accent:#007173; --deep:#003134; --on-deep:#e4f1f0; --on-deep-muted:#9fc3c2;
+  --mark:rgba(0,113,115,.15);
+  --cool:#2a7a4d; --warn:#9a6200; --hot:#b3261e;
+  --f-display:"Spectral", Georgia, "Times New Roman", serif;
+  --f-body:"IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --f-mono:"IBM Plex Mono", ui-monospace, Menlo, Consolas, monospace;
+  color-scheme:light;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#06191b; --surface:#0c272a; --soft:#113438; --ink:#e2eeee; --muted:#97b1b2; --line:#1d4145;
+    --accent:#4cc2c0; --deep:#003134; --on-deep:#e4f1f0; --on-deep-muted:#8fb9b8;
+    --mark:rgba(76,194,192,.22); --cool:#6cc79a; --warn:#e2a945; --hot:#f2857b;
+    color-scheme:dark;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#06191b; --surface:#0c272a; --soft:#113438; --ink:#e2eeee; --muted:#97b1b2; --line:#1d4145;
+  --accent:#4cc2c0; --deep:#003134; --on-deep:#e4f1f0; --on-deep-muted:#8fb9b8;
+  --mark:rgba(76,194,192,.22); --cool:#6cc79a; --warn:#e2a945; --hot:#f2857b;
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{background:var(--bg); color:var(--ink); font:15px/1.55 var(--f-body)}
+a{color:var(--accent)}
+button,input,select,textarea{font:inherit; color:inherit}
+:focus-visible{outline:2px solid var(--accent); outline-offset:2px}
+
+/* Masthead */
+.mast{background:var(--deep); color:var(--on-deep)}
+.mast-in{max-width:1240px; margin:0 auto; padding:20px 20px 0; display:flex; flex-wrap:wrap; align-items:flex-end; justify-content:space-between; gap:12px 24px}
+.brand h1{font:600 26px/1.15 var(--f-display); margin:0; letter-spacing:.005em}
+.brand p{margin:4px 0 16px; color:var(--on-deep-muted); font:italic 400 15px/1.4 var(--f-display)}
+.tabs{display:flex; gap:4px}
+.tab{background:none; border:0; color:var(--on-deep-muted); padding:10px 16px; cursor:pointer; border-radius:8px 8px 0 0; font-weight:500}
+.tab:hover{color:var(--on-deep)}
+.tab[aria-selected="true"]{background:var(--bg); color:var(--ink)}
+.tab .n{font:500 12px var(--f-mono); opacity:.7; margin-left:4px}
+
+main{max-width:1240px; margin:0 auto; padding:24px 20px 48px}
+.view[hidden]{display:none}
+
+/* Workbench */
+.bench{display:grid; gap:24px; grid-template-columns:1fr}
+@media (min-width:940px){ .bench{grid-template-columns:minmax(0,5fr) minmax(0,7fr); align-items:start} .input-pane{position:sticky; top:16px} }
+.panel{background:var(--surface); border:1px solid var(--line); border-radius:10px; padding:18px}
+.input-pane{display:flex; flex-direction:column; gap:14px}
+label.lbl, .lbl{display:block; font-weight:600; font-size:13px; letter-spacing:.02em; text-transform:uppercase; color:var(--muted); margin-bottom:6px}
+textarea, input[type="text"], input[type="search"]{width:100%; background:var(--bg); border:1px solid var(--line); border-radius:8px; padding:10px 12px}
+textarea{min-height:220px; resize:vertical; line-height:1.5}
+.tone{display:grid; grid-template-columns:repeat(3,1fr); gap:6px}
+.tone input{position:absolute; opacity:0; pointer-events:none}
+.tone label{display:block; border:1px solid var(--line); border-radius:8px; padding:8px 10px; cursor:pointer; background:var(--bg)}
+.tone label b{display:block; font-weight:600; font-size:14px}
+.tone label span{display:block; font-size:12px; color:var(--muted); line-height:1.35}
+.tone input:checked + label{border-color:var(--accent); box-shadow:inset 0 0 0 1px var(--accent); background:var(--soft)}
+.tone input:focus-visible + label{outline:2px solid var(--accent); outline-offset:2px}
+.actions{display:flex; flex-wrap:wrap; gap:8px; align-items:center}
+.btn{border:1px solid var(--line); background:var(--surface); border-radius:8px; padding:9px 14px; cursor:pointer; font-weight:500}
+.btn:hover{border-color:var(--accent)}
+.btn.primary{background:var(--accent); border-color:var(--accent); color:#fff}
+:root[data-theme="dark"] .btn.primary{color:#04201f}
+@media (prefers-color-scheme: dark){ :root:not([data-theme="light"]) .btn.primary{color:#04201f} }
+.btn.primary:hover{filter:brightness(1.08)}
+.btn[disabled]{opacity:.55; cursor:not-allowed}
+.btn.small{padding:5px 10px; font-size:13px}
+.note{font-size:13px; color:var(--muted); margin:0}
+.status{font-size:13px; color:var(--muted)}
+.status.err{color:var(--hot)}
+
+/* Results */
+.results{display:flex; flex-direction:column; gap:16px}
+.summary{display:flex; flex-direction:column; gap:10px}
+.chips{display:flex; flex-wrap:wrap; gap:6px; align-items:center}
+.chip{display:inline-flex; align-items:center; gap:6px; border:1px solid var(--line); border-radius:999px; padding:2px 10px; font-size:12.5px; font-weight:500; background:var(--bg); white-space:nowrap}
+.chip .dot{width:8px; height:8px; border-radius:50%; background:currentColor}
+.chip.low{color:var(--cool)} .chip.medium{color:var(--warn)} .chip.high{color:var(--hot)}
+.chip.src{color:var(--muted)}
+.chip.likely{background:var(--accent); border-color:var(--accent); color:#fff}
+:root[data-theme="dark"] .chip.likely{color:#04201f}
+@media (prefers-color-scheme: dark){ :root:not([data-theme="light"]) .chip.likely{color:#04201f} }
+.chip.possible{color:var(--accent); border-color:var(--accent); background:transparent}
+.read{font:500 17px/1.45 var(--f-display); margin:0; text-wrap:pretty}
+.stale{border-left:3px solid var(--warn); padding:6px 10px; background:var(--soft); font-size:13px; border-radius:0 6px 6px 0}
+h2.sec{font:600 13px var(--f-body); letter-spacing:.04em; text-transform:uppercase; color:var(--muted); margin:0 0 10px; display:flex; align-items:center; justify-content:space-between; gap:8px}
+.msg{white-space:pre-wrap; word-wrap:break-word; background:var(--bg); border-radius:8px; padding:12px 14px; font-size:14.5px; max-height:280px; overflow:auto}
+mark{background:var(--mark); color:inherit; border-bottom:2px solid var(--accent); padding:0 1px; border-radius:2px}
+mark sup{font:600 10px var(--f-mono); color:var(--accent); margin-left:1px}
+.tlist{list-style:none; margin:0; padding:0; display:flex; flex-direction:column}
+.tlist li{display:grid; grid-template-columns:28px 1fr; gap:4px 10px; padding:12px 0; border-top:1px solid var(--line)}
+.tlist li:first-child{border-top:0; padding-top:0}
+.num{font:600 12px var(--f-mono); width:24px; height:24px; border-radius:50%; background:var(--soft); color:var(--accent); display:grid; place-items:center; margin-top:1px}
+.thead{display:flex; flex-wrap:wrap; gap:8px; align-items:center}
+.tname{font-weight:600; background:none; border:0; padding:0; cursor:pointer; color:var(--ink); text-decoration:underline; text-decoration-color:var(--line); text-underline-offset:3px}
+.tname:hover{text-decoration-color:var(--accent)}
+.quote{font:13.5px/1.45 var(--f-mono); color:var(--ink); background:var(--bg); border-left:3px solid var(--accent); padding:4px 8px; margin:6px 0 4px; border-radius:0 4px 4px 0; word-wrap:break-word}
+.expl{margin:0; font-size:14px}
+.move{margin:4px 0 0; font-size:13px; color:var(--muted)}
+.move b{color:var(--ink); font-weight:600}
+.empty{color:var(--muted); font-size:14px; margin:0}
+.two{display:grid; gap:16px; grid-template-columns:1fr}
+@media (min-width:640px){ .two{grid-template-columns:1fr 1fr} }
+.root-main{display:flex; flex-wrap:wrap; align-items:baseline; gap:8px; margin-bottom:6px}
+.root-main strong{font:600 18px var(--f-display)}
+.small{font-size:13.5px; margin:0}
+.muted{color:var(--muted)}
+.reply-box{background:var(--bg); border:1px solid var(--line); border-radius:8px; padding:14px 16px; white-space:pre-wrap; font-size:15px; line-height:1.6; min-height:80px}
+.reply-tools{display:flex; flex-wrap:wrap; gap:8px; align-items:center; margin-top:10px}
+.unc{margin:0; padding-left:18px; font-size:13.5px}
+.unc li{margin:2px 0}
+
+/* Field guide */
+.guide-top{display:grid; gap:16px; grid-template-columns:1fr; margin-bottom:20px}
+@media (min-width:940px){ .guide-top{grid-template-columns:minmax(0,5fr) minmax(0,7fr)} }
+.guide-top h2{font:600 22px/1.25 var(--f-display); margin:0 0 8px; text-wrap:balance}
+.guide-top p{margin:0 0 8px; max-width:65ch}
+.roots{display:grid; grid-template-columns:repeat(auto-fill,minmax(210px,1fr)); gap:8px}
+.root-card{border:1px solid var(--line); border-radius:8px; padding:8px 10px; background:var(--surface); cursor:pointer; text-align:left}
+.root-card[aria-pressed="true"]{border-color:var(--accent); box-shadow:inset 0 0 0 1px var(--accent); background:var(--soft)}
+.root-card b{display:block; font-size:14px}
+.root-card span{display:block; font-size:12.5px; color:var(--muted); line-height:1.35}
+.filterbar{display:flex; flex-wrap:wrap; gap:10px; align-items:center; margin-bottom:14px}
+.filterbar input{max-width:360px}
+.grid{display:grid; gap:12px; grid-template-columns:repeat(auto-fill,minmax(320px,1fr))}
+@media (max-width:420px){ .grid{grid-template-columns:1fr} }
+.card{background:var(--surface); border:1px solid var(--line); border-radius:10px; padding:16px; display:flex; flex-direction:column; gap:8px; scroll-margin-top:16px; transition:box-shadow .3s}
+.card.flash{box-shadow:0 0 0 3px var(--accent)}
+.card h3{font:600 18px/1.25 var(--f-display); margin:0; display:flex; gap:8px; align-items:baseline}
+.card h3 .no{font:500 12px var(--f-mono); color:var(--accent)}
+.lineage{font-size:12.5px; color:var(--muted); font-style:italic; margin:0}
+.card p{margin:0; font-size:14px}
+.says{margin:0; padding:0; list-style:none; font:13px/1.5 var(--f-mono); color:var(--muted)}
+.says li::before{content:"\201C"} .says li::after{content:"\201D"}
+.card .k{font-weight:600; font-size:12px; letter-spacing:.04em; text-transform:uppercase; color:var(--muted); display:block; margin-bottom:2px}
+.mit{border-top:1px solid var(--line); padding-top:8px}
+footer{max-width:1240px; margin:0 auto; padding:0 20px 32px; font-size:13px; color:var(--muted)}
+footer p{max-width:80ch; margin:0 0 6px}
+@media (prefers-reduced-motion: reduce){ *{transition:none !important; scroll-behavior:auto !important} }
+</style>
+</head>
+<body>
+<header class="mast">
+  <div class="mast-in">
+    <div class="brand">
+      <h1>The Obfuscation Eschewer</h1>
+      <p>Dialectic over eristic: the Socratic tradition, operationalised</p>
+    </div>
+    <nav class="tabs" role="tablist" aria-label="Views">
+      <button class="tab" role="tab" id="tab-analyse" aria-controls="analyse" aria-selected="true">Analyse</button>
+      <button class="tab" role="tab" id="tab-guide" aria-controls="field-guide" aria-selected="false">Field guide <span class="n" id="tcount"></span></button>
+    </nav>
+  </div>
+</header>
+
+<main>
+  <section class="view" id="analyse" role="tabpanel" aria-labelledby="tab-analyse">
+    <div class="bench">
+      <div class="panel input-pane">
+        <div>
+          <label class="lbl" for="msg">Message to analyse</label>
+          <textarea id="msg" spellcheck="false" placeholder="Paste an email or chat message"></textarea>
+        </div>
+        <div>
+          <label class="lbl" for="ctx">Context <span style="text-transform:none;letter-spacing:0;font-weight:400">(optional)</span></label>
+          <input type="text" id="ctx" placeholder="e.g. Peer in delivery; I wrote the proposal; client deadline is real">
+        </div>
+        <fieldset style="border:0;padding:0;margin:0">
+          <legend class="lbl">Reply tone</legend>
+          <div class="tone" id="tone">
+            <input type="radio" name="tone" id="tone-diplomatic" value="diplomatic" checked><label for="tone-diplomatic"><b>Diplomatic</b><span>Warm, face-saving</span></label>
+            <input type="radio" name="tone" id="tone-direct" value="direct"><label for="tone-direct"><b>Direct</b><span>Brief and plain</span></label>
+            <input type="radio" name="tone" id="tone-formal" value="formal"><label for="tone-formal"><b>Formal</b><span>For senior or client audiences</span></label>
+          </div>
+        </fieldset>
+        <div class="actions">
+          <button class="btn primary" id="go" disabled>Connecting to Claude…</button>
+          <button class="btn" id="example">Load example</button>
+          <button class="btn" id="clear">Clear</button>
+          <span class="status" id="status" role="status" aria-live="polite"></span>
+        </div>
+        <p class="note">The quick scan runs in your browser as you type and sends nothing anywhere. <b>Analyse with Claude</b> sends the message and context to Claude for a fuller reading. Remove names or client details you would rather not share.</p>
+      </div>
+
+      <div class="results" id="results" aria-live="polite"></div>
+    </div>
+  </section>
+
+  <section class="view" id="field-guide" role="tabpanel" aria-labelledby="tab-guide" hidden>
+    <div class="guide-top">
+      <div>
+        <h2>Field guide to eristic tactics</h2>
+        <p>Aristotle's <i>Sophistical Refutations</i> catalogued arguments that only appear to refute. Schopenhauer's <i>The Art of Being Right</i> listed 38 stratagems for winning a dispute regardless of truth. This guide translates both into the patterns that show up in workplace email and chat, plus a few modern ones with the same structure.</p>
+        <p class="muted small">Each tactic notes its likely root cause and a response move. The moves aim to bring the argument back to evidence; none of them are counter-tactics. A tactic in a message is a hypothesis about the message, never a verdict on the person.</p>
+      </div>
+      <div>
+        <span class="lbl">Filter by root cause</span>
+        <div class="roots" id="roots"></div>
+      </div>
+    </div>
+    <div class="filterbar">
+      <label class="lbl" for="q" style="margin:0">Search</label>
+      <input type="search" id="q" placeholder="Name, phrase or source, e.g. goalposts, Schopenhauer 30">
+      <span class="status" id="gcount"></span>
+    </div>
+    <div class="grid" id="grid"></div>
+  </section>
+</main>
+<footer>
+  <p>The quick scan matches keyword patterns. It will miss tactics phrased in unusual ways and will sometimes flag innocent wording, so read every finding in context. Claude analysis weighs tone and intent but can still be wrong; uncertainties are listed with each result.</p>
+</footer>
+
+<script>
+"use strict";
+const ROOTS = {
+  fear:{name:"Fear of risk or blame", desc:"Worried about failure, exposure or being held responsible.", helps:"Lower the perceived risk: a pilot, a rollback plan, shared ownership of the decision."},
+  territory:{name:"Territory", desc:"Protecting remit, ownership or budget.", helps:"Credit their ownership and involve them in shaping the outcome."},
+  sunk:{name:"Sunk cost", desc:"Invested in the current approach, personally or financially.", helps:"Honour what was built; compare options on future cost and value only."},
+  knowledge:{name:"Knowledge gap", desc:"Missing context or expertise, and possibly reluctant to say so.", helps:"Explain without condescension; offer a short briefing or walkthrough."},
+  status:{name:"Status and face", desc:"Concerned about how they look to peers or seniors.", helps:"Give them a way to agree, or to change their mind, without losing face."},
+  overload:{name:"Overload", desc:"Under time or capacity pressure; resistance sheds work.", helps:"Make the ask smaller and the path to a decision faster."},
+  accountability:{name:"Accountability avoidance", desc:"Avoiding ownership of a decision or its consequences.", helps:"Make decisions, owners and risk acceptance explicit in writing."},
+  control:{name:"Loss of control", desc:"Uncomfortable with change they did not initiate.", helps:"Offer real choices and a role in the decision."}
+};
+const TONES = {
+  diplomatic:{label:"Diplomatic", desc:"warm, collaborative and face-saving; acknowledges feelings briefly"},
+  direct:{label:"Direct", desc:"brief, plain and courteous; no padding, short sentences"},
+  formal:{label:"Formal", desc:"measured, professional register suitable for senior leaders or clients"}
+};
+
+const T = [
+ {id:"consensus", name:"Appeal to consensus", lineage:"Schopenhauer 30 (universal opinion as authority)",
+  def:"Claims a group already agrees, so the point needs no further argument.",
+  says:["Everyone agrees that…","The team's view is…","Nobody thinks this will work."], roots:["status","fear"],
+  flag:"Presents agreement as settled without saying who agrees or why.",
+  mit:"Ask who was consulted and what their specific objections were, then treat each as an argument to answer rather than a vote to count.",
+  ask:"Could you let me know who you've spoken to and what their main reservations were? I'd rather address those points directly.",
+  re:["\\beveryone (agrees|thinks|knows|feels|is aligned|is of the view)","\\bnobody (thinks|believes|wants|agrees|likes)","\\b(the )?(whole |entire )?team (agrees|feels|thinks|is aligned)","\\bgeneral consensus\\b","\\bwe('re| are) all (agreed|aligned)\\b","\\ball of us (agree|think|feel)"]},
+ {id:"vague", name:"Vague attribution", lineage:"Schopenhauer 30 (unnamed authority); Aristotle, ignoratio elenchi",
+  def:"Cites unnamed sources so the claim cannot be checked or answered.",
+  says:["People are saying…","Concerns have been raised…","I've heard from a few people…"], roots:["accountability","fear"],
+  flag:"Relies on unnamed sources, so the claim can't be tested or answered.",
+  mit:"Ask for the substance rather than the names: what exactly was the concern, and in what context? Offer to speak to the source directly.",
+  ask:"Could you share what the specific concerns were? I'm happy to speak to whoever raised them so nothing gets lost in translation.",
+  re:["\\b(some |a few |several |many )?people (are saying|have said|have mentioned|have raised|feel that|think that)","\\b(concerns|questions|issues|doubts) have been (raised|expressed|flagged)","\\b(i've|i have|we've|we have) (heard|spoken|talked)( to| from| with)? (a few|some|several|a couple of|various) (people|colleagues|folks|stakeholders)","\\bit('s| has been) (said|mentioned|suggested|noted|felt) that\\b","\\bthere('s| is) a (feeling|sense|perception|view) that\\b","\\bword is\\b"]},
+ {id:"authority", name:"Appeal to rank", lineage:"Schopenhauer 30 (authority in place of reasons)",
+  def:"Substitutes a senior person's preference for a reason.",
+  says:["The VP wants it this way.","Leadership has already decided.","Our CISO would never accept that."], roots:["status","accountability"],
+  flag:"Uses a senior person's preference in place of a reason.",
+  mit:"Respect the authority's role, then ask for the rationale or requirement behind the position so you can meet it.",
+  ask:"Understood that leadership has a view here. Could you share the reasoning or requirement behind it, so I can make sure the proposal meets it?",
+  re:["\\b(the |our )?(vp|svp|evp|ceo|cto|ciso|cio|coo|director|board|leadership|management|execs?|exec team|senior management) (wants|has decided|decided|expects|insists|won't|will not|would never|has been clear|has made it clear|is adamant)","\\b(leadership|management|the board|the execs?) (has|have) (already )?(decided|agreed|signed off)","\\b(above|beyond) my pay ?grade\\b","\\bcame (down )?from the top\\b"]},
+ {id:"credential", name:"Credential challenge", lineage:"Schopenhauer 38 (argumentum ad personam) and 16",
+  def:"Questions the speaker's standing instead of the argument.",
+  says:["Have you ever actually run a SOC?","With respect, you're not an engineer.","Come back when you've done it."], roots:["status","territory"],
+  flag:"Targets your standing rather than the argument itself.",
+  mit:"Don't defend your CV. Acknowledge their experience, invite it, and bring the discussion back to evidence anyone could check.",
+  ask:"You clearly have hands-on experience here and I'd value it. Which part of the approach do you think won't hold up in practice? That will help me test it properly.",
+  re:["\\bhave you (ever )?(actually |personally |even )?(run|managed|worked (in|on|with)|done|built|led|operated|been (in|on))\\b","\\b(you're|you are) not (an? )?(engineer|expert|technical|analyst|architect|practitioner|operator)","\\bcome back (to me )?when you('ve| have)\\b","\\b(what|how much) do you (actually )?(know|understand) about\\b","\\byou wouldn't (know|understand)\\b"]},
+ {id:"goalposts", name:"Moving the goalposts", lineage:"Modern name; Aristotle, ignoratio elenchi (proving a different point)",
+  def:"Raises the standard of proof once the original condition appears to have been met.",
+  says:["That's fine, but now it also needs…","OK, but that's not really the issue.","That was then; now we need…"], roots:["sunk","fear"],
+  flag:"Introduces a new condition after the previous one appears to have been met.",
+  mit:"Restate the original criterion and confirm whether it has been met before taking on new ones; agree the full set of criteria in writing.",
+  ask:"To make sure we're working to the same bar: was the original requirement met? If there are further criteria, could we list them all now so I can address them in one go?",
+  re:["\\b(that's|that is) (fine|great|good|all very well),? but (now|it also|we also|it still|there's still)","\\b(ok|okay|fine|sure),? but (that's|that is) not (really )?(the|my) (issue|point|question|concern)","\\b(it|this) (now|also) (needs|has) to\\b","\\bthat was (then|before)\\b","\\b(now|but) (we|you) (also )?need to (show|prove|demonstrate)\\b"]},
+ {id:"burden", name:"Burden shifting", lineage:"Modern name; related to Aristotle's begging the question and Schopenhauer 22",
+  def:"Demands that you disprove their claim, or prove a negative, before it can be discussed.",
+  says:["Prove it won't fail.","Unless you can guarantee…","Show me why we shouldn't…"], roots:["fear","accountability"],
+  flag:"Asks you to prove a negative or guarantee an outcome, which no proposal can do.",
+  mit:"Acknowledge the risk, decline the impossible standard, and offer a proportionate one: evidence, a pilot, a rollback plan or a recorded risk acceptance.",
+  ask:"No approach can come with a guarantee, but I can set out the evidence, the residual risk and a rollback plan. Would that give you what you need to decide?",
+  re:["\\bunless you can (guarantee|prove|promise|show|demonstrate)\\b","\\b(prove|guarantee|show me) (that )?(it|this|that|there) (won't|will not|can't|cannot|doesn't|does not|will never|is no)","\\b(can you|you need to|you'll need to|you must) (guarantee|prove)\\b","\\bshow me why (we|i) shouldn't\\b","\\b(it's|it is) (on you|up to you) to (prove|show)\\b","\\buntil you (can )?(prove|show)\\b"]},
+ {id:"urgency", name:"Urgency shield", lineage:"Modern workplace pattern; Schopenhauer 18 (cutting the dispute short)",
+  def:"Uses time pressure to close down discussion or questions.",
+  says:["We don't have time to debate this.","Just get it done.","The client needs an answer by Friday, so…"], roots:["overload","fear"],
+  flag:"Uses time pressure to close the discussion rather than to answer it.",
+  mit:"Accept the deadline as real and separate it from the decision: offer the fastest route to a sound answer, and name what is at risk if that step is skipped.",
+  ask:"I understand the deadline is tight and I can turn this round quickly. The one thing I need to confirm first is the point above, so we don't have to undo it later.",
+  re:["\\b(we )?(don't|do not|haven't|have not) (got |have )?(the )?time (to|for)\\b","\\bno time (to|for)\\b","\\bjust (get it done|do it|ship it|send it|push it through|make it work)\\b","\\b(needs?|wants?) (an answer|a decision|this|it) (by|before) (eod|cob|close of play|friday|monday|tuesday|wednesday|thursday|tomorrow|today|end of (the )?(day|week))","\\b(this is|it's|it is) (urgent|time[- ]critical|time[- ]sensitive)\\b","\\bwe (can't|cannot) (afford|wait) to\\b","\\bnow is not the time\\b"]},
+ {id:"dilemma", name:"False dilemma", lineage:"Schopenhauer 13 (offering a choice between two)",
+  def:"Presents two options as the only ones, so rejecting one means accepting the other.",
+  says:["Either we ship as-is or we lose the client.","It's this or nothing.","You're either with us or…"], roots:["control","overload"],
+  flag:"Offers two options as if they were the only ones available.",
+  mit:"Acknowledge both options, name a third (phased, reduced scope, pilot), and ask what criteria would decide between them.",
+  ask:"I can see both of those options. Would a middle route work, for example a phased or reduced-scope version, so we keep the timeline without carrying the full risk?",
+  re:["\\beither (we|you|i|they)\\b[^.?!\\n]{0,90}\\bor (we|you|i|they)\\b","\\b(it's|it is) (this|that) or nothing\\b","\\b(the )?only (two )?(options?|choices?|alternatives?) (is|are)\\b","\\btake it or leave it\\b","\\byou('re| are) either (with|for)\\b"]},
+ {id:"strawman", name:"Straw man", lineage:"Schopenhauer 1 (extension); Aristotle, ignoratio elenchi",
+  def:"Restates your position in an exaggerated or simplified form, then argues against that.",
+  says:["So you're saying we should just ignore…","You want to throw out the whole process?","What you're proposing is basically…"], roots:["fear","knowledge"],
+  flag:"Restates your position in a stronger or simpler form than you put it.",
+  mit:"Calmly restate your actual position in one sentence, then check you've understood their concern in theirs.",
+  ask:"To be clear, my proposal is narrower than that: [restate it in one sentence]. Have I understood your main concern correctly?",
+  re:["\\bso (what )?you('re| are) (saying|suggesting|proposing)\\b","\\byou (want|are proposing|'re proposing) (to )?(just )?(throw out|scrap|abandon|ignore|get rid of|tear up|bin)\\b","\\bwhat you('re| are) (proposing|suggesting|saying) is (basically|essentially|really|just)\\b"]},
+ {id:"equivocation", name:"Shifting definitions", lineage:"Aristotle, homonymy (equivocation); Schopenhauer 2",
+  def:"Uses a key term in two senses, so the argument slides between them.",
+  says:["That's not real 'coverage'.","Depends what you mean by 'done'.","When I say secure, I mean…"], roots:["knowledge","territory"],
+  flag:"A key term may be carrying two different meanings in the same argument.",
+  mit:"Agree a working definition of the key term before continuing, and write it down.",
+  ask:"I think we may be using '[term]' in slightly different ways. Could we agree a definition first, so we're comparing like with like?",
+  re:["\\b(it )?depends (on )?what you mean by\\b","\\b(that's|that is|it's|it is) not (real|true|proper|actual|genuine) \\w+","\\bwhen i say\\b","\\b(that's|that is) not what (i|we) (mean|meant) by\\b"]},
+ {id:"hasty", name:"Overgeneralisation", lineage:"Aristotle, secundum quid; Schopenhauer 3 and 25",
+  def:"Draws a general rule from one case, or uses one exception to dismiss a whole approach.",
+  says:["We tried that once and it failed.","That never works.","Look what happened at the last client."], roots:["fear","sunk"],
+  flag:"Generalises from a single case or anecdote.",
+  mit:"Take the example seriously, ask what specifically went wrong, and show what is different this time.",
+  ask:"That example is useful. Do you know what caused it to fail? If it was [factor], I can show how this approach handles it differently.",
+  re:["\\b(we|they) tried (that|this|it) (once|before|already|last year)\\b","\\b(that|this|it) (never|always) (works|fails|goes wrong|ends well)\\b","\\blook (at )?what happened (at|with|to|last)\\b","\\b(every time|whenever) (we|they) (try|tried|do|did) (this|that)\\b","\\b(this|that|it) has (never|always) (worked|failed)\\b"]},
+ {id:"begging", name:"Begging the question", lineage:"Aristotle, petitio principii; Schopenhauer 6",
+  def:"Assumes the conclusion in the premise, so the argument goes in a circle.",
+  says:["We need X because X is required.","It's right because it's best practice.","Obviously this is the correct way."], roots:["knowledge","sunk"],
+  flag:"The conclusion is assumed in the reason given for it.",
+  mit:"Ask what independent evidence or requirement supports the conclusion.",
+  ask:"Could you point me to the requirement or evidence behind that? It would help me see the reasoning as well as the conclusion.",
+  re:["\\b(because|since) (it's|it is) (best practice|the standard|the right way|how it's done|required)\\b","\\b(obviously|clearly|self-evidently),? (this|that|it|we) (is|are|should|must)\\b","\\b(it's|it is) (obvious|self-evident|common sense) that\\b"]},
+ {id:"loaded", name:"Loaded question", lineage:"Aristotle, fallacy of many questions; Schopenhauer 7",
+  def:"A question that presupposes something you have not accepted.",
+  says:["Why do you keep missing these deadlines?","When did you decide to ignore the SLA?","Why is your team always the bottleneck?"], roots:["status","accountability"],
+  flag:"The question takes for granted something you haven't agreed to.",
+  mit:"Separate the presupposition from the question: address the assumption factually, then answer the real question.",
+  ask:"Before I answer, I want to check one assumption: [restate it]. On the underlying question, here is where things stand: [facts].",
+  re:["\\bwhy (do|does) (you|your team|they) (keep|always|never|continually|constantly)\\b","\\bwhy (is|are) (you|your team|your side) (always|never|constantly)\\b","\\bwhen did you (decide|stop|start) to\\b","\\bhow come (you|your team) (always|never|keep)\\b"]},
+ {id:"label", name:"Odious labelling", lineage:"Schopenhauer 32 (odious category) and 12 (loaded terms)",
+  def:"Dismisses a proposal by attaching a negative label rather than engaging with it.",
+  says:["That's just vendor marketing.","Classic ivory-tower thinking.","Sounds like more bureaucracy."], roots:["territory","status"],
+  flag:"Dismisses the idea by labelling it rather than engaging with it.",
+  mit:"Acknowledge the worry behind the label, then ask which specific element triggers it.",
+  ask:"I'd hate for this to add overhead or hype. Which part specifically gives that impression? I can either justify it or cut it.",
+  re:["\\b(that's|that is|this is|it's|it is|sounds like|smells like|reads like) (just |classic |typical |pure |more |basically |a )?(vendor|marketing|sales|ivory[- ]tower|academic|consultant|bureaucra\\w*|box[- ]ticking|tick[- ]box|theatre|theater|buzzword|hype|red tape|paper exercise|corporate)","\\b(vendor|consultant|marketing|corporate|management)[- ]?speak\\b"]},
+ {id:"theory", name:"Theory versus practice", lineage:"Schopenhauer 33 (all very well in theory, but…)",
+  def:"Concedes the reasoning but rejects it as impractical without saying why.",
+  says:["Fine in theory, but in the real world…","That's not how it works on the ground.","Looks good on paper."], roots:["knowledge","fear"],
+  flag:"Accepts the logic in principle but rejects it in practice without saying why.",
+  mit:"Agree that practice matters and ask for the specific practical obstacle; that is usually the most valuable information in the exchange.",
+  ask:"I agree practice is what counts. What's the main obstacle you'd expect on the ground? If you can name it, I'll build it into the plan.",
+  re:["\\b(fine|great|good|works|all very well|nice|sounds good|looks good) (in theory|on paper)\\b","\\bin the real world\\b","\\b(not|isn't|is not) how (it|things) (works?|happens?|goes|go) (on the ground|in practice|in reality|here|in real life)\\b","\\bivory tower\\b"]},
+ {id:"adhominem", name:"Tone or character attack", lineage:"Schopenhauer 38 (becoming personal)",
+  def:"Shifts from the argument to your tone, motives or character.",
+  says:["You're being emotional about this.","This is typical of you.","You just want to protect your patch."], roots:["status","overload"],
+  flag:"Moves from the substance to your tone, motives or character.",
+  mit:"Don't match the register. Acknowledge any fair point about tone in a single line, then return to the substance.",
+  ask:"If my earlier message came across as sharp, that wasn't the intent. On the substance, the question I'd still like to resolve is [question].",
+  re:["\\byou('re| are) (being )?(so )?(emotional|defensive|difficult|naive|dramatic|precious|obstructive|negative|aggressive|paranoid|unreasonable|over-?reacting)\\b","\\b(typical|classic) (of )?you\\b","\\byou (just |only )?(want|care about|always want) (to )?(protect|cover|look good|win|be right|your)\\b","\\byour (attitude|tone|behaviour|behavior) (is|has been)\\b","\\b(that's|that is) (a bit )?rich coming from\\b"]},
+ {id:"diversion", name:"Diversion", lineage:"Schopenhauer 18 and 29 (diversion)",
+  def:"Changes the subject when the original point becomes uncomfortable.",
+  says:["The real issue is…","Before we get into that, what about…","Let's not forget last quarter."], roots:["accountability","fear"],
+  flag:"Changes the subject away from the point under discussion.",
+  mit:"Acknowledge the new topic as worth discussing, park it explicitly, and return to the open question.",
+  ask:"That's a fair topic and I'm happy to take it separately. To close this one first: [restate the open question].",
+  re:["\\bthe (real|bigger|actual|more important) (issue|problem|question|point) (is|here)\\b","\\b(before we get into|let's not forget|let's not lose sight)\\b","\\b(more importantly|that aside|speaking of which),","\\blet's (focus|talk) (on|about) (something else|the real)\\b"]},
+ {id:"incomprehension", name:"Feigned incomprehension", lineage:"Schopenhauer 31 (ironic declaration of incompetence)",
+  def:"Claims not to understand, implying the idea is unclear or absurd.",
+  says:["I genuinely don't see why we'd ever…","Maybe I'm missing something, but…","I'm struggling to follow the logic."], roots:["territory","status"],
+  flag:"Professes not to understand; this may be genuine, or may imply the idea is absurd.",
+  mit:"Take it at face value: give a shorter, clearer explanation and ask which part is unclear. This is where assuming good faith matters most.",
+  ask:"Fair challenge; let me put it more simply: [one-sentence version]. Which part is least clear, so I can fill the gap?",
+  re:["\\b(maybe|perhaps) i('m| am) missing something\\b","\\bi('m| am) (struggling|failing) to (see|follow|understand)\\b","\\bi (genuinely |honestly |just |really |simply )?(don't|do not|can't|cannot) (see|understand|follow) (why|how|the logic)\\b","\\bhelp me understand (why|how) (anyone|we|you) would\\b"]},
+ {id:"interest", name:"Appeal to self-interest", lineage:"Schopenhauer 35 (will over insight)",
+  def:"Argues from what is good for you rather than what is true or right.",
+  says:["Think about how this will look for you.","This won't help your review.","Do you really want to be the one who…?"], roots:["fear","status"],
+  flag:"Argues from consequences for you rather than from the merits.",
+  mit:"Thank them for the heads-up, then bring it back to the merits for the organisation and the client.",
+  ask:"I appreciate you looking out for me. I'd still like to decide this on what's right for the client, so the question I'd ask is [question].",
+  re:["\\b(think about|consider) (how|what) (this|it) (will|would|could) (look|mean) (for|to) you\\b","\\bdo you (really )?want to be the one\\b","\\b(for your own sake|if i were you)\\b","\\byour (career|review|bonus|reputation|promotion)\\b"]},
+ {id:"bombast", name:"Jargon fog", lineage:"Schopenhauer 36 (bewildering with bombast); Aristotle, 'babbling'",
+  def:"Uses dense jargon or sheer volume of words to imply an argument that is never actually made.",
+  says:["Given the synergistic risk posture across the holistic control plane…","Long chains of acronyms without a conclusion."], roots:["knowledge","status"],
+  flag:"Dense jargon may be standing in for a specific point.",
+  mit:"Summarise what you think the point is in plain words and ask them to confirm or correct it.",
+  ask:"Let me check I've understood the core point: [plain-English summary]. Is that right, or have I missed something?",
+  minHits:2,
+  re:["\\b(synerg\\w*|holistic\\w*|paradigm\\w*|leverag\\w+|best[- ]of[- ]breed|world[- ]class|next[- ]gen\\w*|value[- ]add\\w*|strategic alignment|move the needle|boil the ocean|circle back|north star|low[- ]hanging fruit|single pane of glass)\\b"]},
+ {id:"victory", name:"Premature closure", lineage:"Schopenhauer 14 (claiming victory regardless)",
+  def:"Declares the matter settled when it hasn't been agreed.",
+  says:["So we're agreed then.","As we established…","I'll take that as a yes."], roots:["control","overload"],
+  flag:"Treats a point as agreed when it may not have been.",
+  mit:"Politely correct the record in writing, stating what is and isn't agreed.",
+  ask:"Just to keep the record accurate: we agreed [X], but [Y] is still open. Can we confirm that before moving on?",
+  re:["\\b(so )?(we're|we are) (all )?(agreed|aligned|settled|on the same page)( then)?\\b","\\bas (we|i) (established|agreed|concluded)\\b","\\b(i'll|i will) take (that|this|your silence) as a yes\\b","\\b(that's|that is) (settled|decided|closed|final) then\\b","\\bunless i hear otherwise\\b"]},
+ {id:"inconsistency", name:"Consistency trap", lineage:"Schopenhauer 16 (argumentum ex concessis); tu quoque",
+  def:"Points to something you said or did before to discredit the current point, rather than address it.",
+  says:["But you said last month…","Funny, you didn't object when…","You do the same thing yourself."], roots:["territory","status"],
+  flag:"Uses an earlier position of yours against the current one; this is fair if nothing has changed.",
+  mit:"Acknowledge the earlier position honestly, explain what changed (or concede), then return to the merits.",
+  ask:"Fair point, I did say that. What changed is [new information]. On the merits as they stand now, [point].",
+  re:["\\b(but |yet )?you (said|told us|agreed|argued|wrote) (last|in|at|on|the other|previously|before|earlier)\\b","\\byou (didn't|did not) (object|complain|mind|say anything) when\\b","\\byou (do|did) the (same|exact same) (thing )?\\b","\\b(that's|that is) not what you said\\b"]},
+ {id:"audience", name:"Playing to the audience", lineage:"Schopenhauer 28 (argumentum ad auditores)",
+  def:"Addresses onlookers, such as copied seniors or a meeting, rather than the person making the argument.",
+  says:["As I'm sure everyone on this thread can see…","Copying in the director for visibility.","I think the room will agree…"], roots:["status","fear"],
+  flag:"Addresses onlookers rather than you, which raises the stakes for both sides.",
+  mit:"Keep your reply calm and factual for everyone reading, and offer to take the detail offline with the sender.",
+  ask:"For everyone's visibility, a short summary of the facts: [one line]. Happy to go through the detail with you directly.",
+  re:["\\b(copying|cc'?ing|looping|adding) (in )?(\\w+ ){0,3}(for (visibility|awareness|transparency)|so (they|he|she|everyone))","\\b(i'm sure )?(everyone|all of you|the (room|group|team)) (on|in) (this|the) (thread|email|chain|call|room|meeting) (can|will) (see|agree)\\b","\\bfor (everyone's|the group's|the wider team's) (benefit|awareness|visibility)\\b"]},
+ {id:"slope", name:"Slippery slope", lineage:"Aristotle, fallacy of the consequent; Schopenhauer 24 (false consequences)",
+  def:"Predicts a chain of escalating consequences without showing that each step is likely.",
+  says:["If we allow this, every client will want it.","This opens the floodgates.","Where does it end?"], roots:["fear","control"],
+  flag:"Predicts escalating consequences without showing each step is likely.",
+  mit:"Acknowledge the first step's risk and propose a boundary or control that stops the chain.",
+  ask:"I take the point about precedent. Would it help to define the limits up front, for example [boundary], so this stays a one-off?",
+  re:["\\bopens? (up )?the (floodgates|door to)\\b","\\bslippery slope\\b","\\bwhere (does|will) (it|this) (end|stop)\\b","\\b(next|before long|soon) (everyone|every (client|team|customer)) will (want|ask|expect)\\b","\\b(set|sets|setting) a (dangerous |bad )?precedent\\b","\\bcan of worms\\b"]},
+ {id:"sunkcost", name:"Sunk cost and habit", lineage:"Modern name; related to Schopenhauer 30 (custom as authority)",
+  def:"Defends a course because of past investment or habit, not its present merits.",
+  says:["We've always done it this way.","We've invested too much to change now.","That's how it's done here."], roots:["sunk","control"],
+  flag:"Defends the current approach by past investment or habit rather than present merit.",
+  mit:"Recognise the investment and what it built, then compare options on future cost and risk only.",
+  ask:"The existing investment has real value and I'd want to keep what works. Could we compare the options on what each costs and risks from here?",
+  re:["\\b(we've|we have|it's|it has) always (done it|been done|worked|been)( this| that)?( way)?\\b","\\b(we've|we have) (already )?(invested|spent|sunk|put) (too much|so much|a lot|years|months)\\b","\\bhow (things are|we do (it|things)) (done )?(around )?here\\b","\\bif it (ain't|isn't|is not) broke\\b","\\btoo late to (change|turn back)\\b"]},
+ {id:"provocation", name:"Provocation", lineage:"Schopenhauer 8 (making the opponent angry) and 27",
+  def:"Needles or mocks to provoke an emotional reaction that weakens your position.",
+  says:["Interesting idea, if a bit naive.","Surely you can't be serious.","Good luck with that."], roots:["status","overload"],
+  flag:"Sarcasm or needling invites an emotional response; staying level is the counter.",
+  mit:"Don't take the bait. Reply only to the substantive content, in a slightly warmer register than the original.",
+  ask:"Thanks for the challenge. Setting style aside, the substantive point I'd like to resolve is [point].",
+  re:["\\bsurely you (can't|cannot|don't|do not) (be serious|mean|think)\\b","\\b(that's|that is) (frankly )?(naive|absurd|ridiculous|nonsense|laughable)\\b","\\b(good luck with that|nice try|bless)\\b","\\b(are you|you can't be) serious\\b"]},
+ {id:"badproof", name:"Refuting the weakest point", lineage:"Schopenhauer 37 (a bad proof refutes the thesis)",
+  def:"Attacks the weakest supporting point and treats the whole position as refuted.",
+  says:["Your figure on slide 3 is wrong, so the whole case falls apart.","If that number's off, why trust the rest?"], roots:["fear","territory"],
+  flag:"Treats one flawed detail as if it disproves the whole position.",
+  mit:"Concede the error cleanly and fix it, then show which conclusions stand without it.",
+  ask:"Thanks for catching that; I'll correct it. The conclusion doesn't depend on that point, though: [the reasons that still stand].",
+  re:["\\b(the )?(whole|entire|rest of the|rest of your) (case|proposal|argument|thing|document|analysis|plan) (falls apart|is (wrong|flawed|invalid|worthless|suspect))","\\b(why|how) (would|should|can) (i|we) trust (the rest|anything)\\b","\\b(undermines|invalidates) (the )?(whole|entire|rest)\\b"]},
+ {id:"gatekeeping", name:"Process gatekeeping", lineage:"Modern workplace pattern; Aristotle, ignoratio elenchi (answering a different question)",
+  def:"Blocks a proposal on remit or procedure without engaging with its substance.",
+  says:["This isn't your call.","That needs to go through the board first.","Not in scope for your team."], roots:["territory","control"],
+  flag:"Raises remit or process instead of the substance; the process point may still be valid.",
+  mit:"Respect the process and ask what the route is; separately ask whether, on substance, they support the idea.",
+  ask:"Happy to take this through the right route. Which forum or approver should it go to, and on the substance, would you support it there?",
+  re:["\\b(this|that|it) (isn't|is not) (your|their) (call|decision|place|remit|area|job)\\b","\\b(not in|outside( of)?) (your|the|our) (remit|scope|lane|mandate)\\b","\\b(needs|has) to go (through|via) (the )?(cab|board|committee|governance|procurement|legal|change board|proper process)\\b","\\bstay in your lane\\b","\\bwho (authorised|authorized|approved) (you|this)\\b"]}
+];
+const BY = Object.fromEntries(T.map((t,i)=>[t.id, Object.assign(t,{no:i+1, rx:t.re.map(p=>new RegExp(p,"gi"))})]));
+
+const EXAMPLE = `Hi,
+
+I've spoken to a few people and everyone agrees the MDR baseline isn't ready to go to the client. Frankly, it's fine in theory, but in the real world our analysts won't cope with that triage model. Unless you can guarantee it won't create an alert backlog, I can't support it.
+
+We don't have time to reopen this. The CSO needs an answer by Friday, so either we ship the existing runbook or we push the whole engagement to Q2.
+
+Have you actually run a SOC floor at this scale?`;
+
+/* ---------- helpers ---------- */
+const $ = s => document.querySelector(s);
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const tone = () => document.querySelector('input[name="tone"]:checked').value;
+const ls = { get(k){ try{return localStorage.getItem(k);}catch(e){return null;} }, set(k,v){ try{localStorage.setItem(k,v);}catch(e){} } };
+
+function sentenceAround(text, start, end){
+  let a = start, b = end;
+  while (a > 0 && !/[.!?\n]/.test(text[a-1])) a--;
+  while (b < text.length && !/[.!?\n]/.test(text[b])) b++;
+  if (b < text.length && /[.!?]/.test(text[b])) b++;
+  let s = text.slice(a, b).trim();
+  if (s.length > 170){
+    const rel = start - a;
+    const from = Math.max(0, rel - 60);
+    s = (from > 0 ? "…" : "") + text.slice(a + from, Math.min(b, a + from + 160)).trim() + "…";
+  }
+  return s;
+}
+function highlight(text, ranges){
+  const rs = ranges.filter(r => r.start >= 0 && r.end > r.start).sort((a,b) => a.start - b.start || b.end - a.end);
+  let out = "", pos = 0;
+  for (const r of rs){
+    if (r.start < pos) continue;
+    out += esc(text.slice(pos, r.start)) + `<mark title="${esc(BY[r.id]?.name || "")}">${esc(text.slice(r.start, r.end))}<sup>${r.n}</sup></mark>`;
+    pos = r.end;
+  }
+  return out + esc(text.slice(pos));
+}
+function findQuote(text, quote){
+  if (!quote) return -1;
+  const q = quote.replace(/^[\s"'“‘…]+|[\s"'”’….]+$/g, "");
+  if (!q) return -1;
+  let i = text.indexOf(q);
+  if (i < 0) i = text.toLowerCase().indexOf(q.toLowerCase());
+  return i < 0 ? -1 : {start:i, end:i+q.length};
+}
+
+/* ---------- local scan ---------- */
+function localScan(text){
+  const findings = [];
+  for (const t of T){
+    const hits = [];
+    for (const rx of t.rx){
+      rx.lastIndex = 0; let m;
+      while ((m = rx.exec(text))){
+        if (!m[0]) { rx.lastIndex++; continue; }
+        hits.push({start:m.index, end:m.index + m[0].length});
+      }
+    }
+    if (hits.length >= (t.minHits || 1)){
+      hits.sort((a,b) => a.start - b.start);
+      findings.push({id:t.id, quote:sentenceAround(text, hits[0].start, hits[0].end), explanation:t.flag,
+        confidence: (hits.length > (t.minHits||1)) ? "likely" : "possible", hits, pos:hits[0].start});
+    }
+  }
+  findings.sort((a,b) => a.pos - b.pos);
+  const score = {};
+  findings.forEach(f => BY[f.id].roots.forEach((r,i) => score[r] = (score[r]||0) + (i===0 ? 2 : 1)));
+  const ranked = Object.entries(score).sort((a,b) => b[1]-a[1]);
+  const hot = findings.some(f => f.id==="adhominem" || f.id==="provocation");
+  const n = findings.length;
+  return {
+    source:"local",
+    read: n === 0
+      ? "No keyword patterns matched. The message may simply be direct; Claude analysis can check for subtler tactics."
+      : `${n} possible tactic${n>1?"s":""} matched by keyword. Treat these as prompts to read more closely, not conclusions.`,
+    temperature: hot || n >= 4 ? "high" : n >= 2 ? "medium" : "low",
+    tactics: findings,
+    root_cause: ranked.length ? {primary:ranked[0][0], secondary:ranked[1]?.[0] || null,
+      rationale:"Tallied from the root causes typical of the matched tactics.", confidence:"low"} : null,
+    good_faith_reading:null, legitimate_concern:null, uncertainty:[], reply: composeLocal(findings, tone())
+  };
+}
+const OPEN = {
+  diplomatic:"Thanks for taking the time to set this out. I can see it matters, and I want to get it right.",
+  direct:"Thanks for this. A few points so we can settle it quickly.",
+  formal:"Thank you for your message and for setting out your concerns."
+};
+const CLOSE = {
+  diplomatic:"Happy to pick this up on a short call if that's easier, so we can settle it on the facts together.",
+  direct:"Once I have that, I can give you a clear answer.",
+  formal:"I would welcome the opportunity to review these points together at your convenience."
+};
+function composeLocal(findings, tn){
+  const pick = [...findings].sort((a,b) => (b.confidence==="likely") - (a.confidence==="likely")).slice(0,3)
+    .sort((a,b) => a.pos - b.pos);
+  if (!pick.length) return OPEN[tn] + "\n\nCould you say a little more about what you'd need to see to be comfortable with this? " + CLOSE[tn];
+  return OPEN[tn] + "\n\n" + pick.map(f => BY[f.id].ask).join("\n\n") + "\n\n" + CLOSE[tn];
+}
+
+/* ---------- Claude ---------- */
+let sampleFn = null, ctrl = null;
+const state = { claude:null, claudeText:null, busy:false };
+
+async function connect(){
+  for (let i = 0; i < 60 && !(window.claude && typeof window.claude.use === "function"); i++) await new Promise(r => setTimeout(r, 100));
+  try { sampleFn = (window.claude && window.claude.use) ? await window.claude.use("sample") : null; } catch(e){ sampleFn = null; }
+  const go = $("#go");
+  if (sampleFn){ go.disabled = false; go.textContent = "Analyse with Claude"; }
+  else { go.hidden = true; setStatus("Claude analysis isn't available in this view. The quick scan still works."); }
+}
+function setStatus(msg, err){ const s = $("#status"); s.textContent = msg || ""; s.classList.toggle("err", !!err); }
+
+function guideText(){
+  return T.map(t => `${t.id} | ${t.name} | ${t.def} | e.g. ${t.says.join(" / ")}`).join("\n");
+}
+function buildPrompt(text, ctx, tn){
+  return `You are a dialectic coach. Analyse a workplace message for eristic (bad-faith) argument tactics using the field guide below, which draws on Aristotle's Sophistical Refutations and Schopenhauer's The Art of Being Right.
+
+Principles:
+- Assume good faith wherever the text allows. A blunt or stressed message is not automatically eristic. Flag a tactic only when the wording supports it; an empty list is a valid answer.
+- Mark each finding "likely" or "possible". List genuine uncertainties, such as missing context or wording that could be read either way.
+- Never suggest manipulative counter-tactics. The goal is dialectic (finding the truth together), not eristic (winning).
+- Use British English spelling. Be brief.
+
+Field guide (id | name | definition | typical phrasing):
+${guideText()}
+
+Root cause keys: ${Object.entries(ROOTS).map(([k,v]) => `${k} (${v.name}: ${v.desc})`).join("; ")}
+
+Reply rules: tone is ${TONES[tn].label}: ${TONES[tn].desc}. 60 to 130 words. Open by acknowledging any legitimate concern in the sender's terms. Ask for evidence or specifics on the one to three most important points. Keep both people's credibility intact and lower the temperature, so nobody loses face and the argument has to stand on its merits. Never name a tactic, never accuse, never use sarcasm. Start with "Hi [Name]," and use [square brackets] for anything the user must fill in. No sign-off.
+
+Context from the user (may be empty): ${ctx || "(none)"}
+
+Message:
+<<<
+${text}
+>>>
+
+Return only a JSON object with exactly these keys:
+{"read": one sentence overall reading,
+ "temperature": "low" | "medium" | "high",
+ "good_faith_reading": one sentence, the most charitable plausible interpretation,
+ "legitimate_concern": one sentence naming the real concern worth answering, or null,
+ "tactics": [{"id": id from the guide, "quote": exact verbatim substring of the message (max 15 words), "explanation": one sentence, "confidence": "likely" | "possible"}],
+ "root_cause": {"primary": root key, "secondary": root key or null, "rationale": one sentence, "confidence": "high" | "medium" | "low"},
+ "reply": the draft reply as plain text,
+ "uncertainty": [short strings]}`;
+}
+function parseJSON(t){
+  const a = t.indexOf("{"), b = t.lastIndexOf("}");
+  if (a < 0 || b < a) throw {code:"parse", message:"Claude's answer couldn't be read."};
+  return JSON.parse(t.slice(a, b+1));
+}
+function normalise(d, text){
+  const tactics = (Array.isArray(d.tactics) ? d.tactics : []).filter(x => x && BY[x.id]).map(x => {
+    const r = findQuote(text, x.quote);
+    return {id:x.id, quote:String(x.quote||""), explanation:String(x.explanation||BY[x.id].flag),
+      confidence: x.confidence === "likely" ? "likely" : "possible", hits: r === -1 ? [] : [r], pos: r === -1 ? 1e9 : r.start};
+  }).sort((a,b) => a.pos - b.pos);
+  const rc = d.root_cause && ROOTS[d.root_cause.primary] ? {
+    primary:d.root_cause.primary, secondary: ROOTS[d.root_cause.secondary] ? d.root_cause.secondary : null,
+    rationale:String(d.root_cause.rationale||""), confidence:["high","medium","low"].includes(d.root_cause.confidence) ? d.root_cause.confidence : "medium"} : null;
+  return {source:"claude", read:String(d.read||""), temperature:["low","medium","high"].includes(d.temperature) ? d.temperature : "medium",
+    good_faith_reading:d.good_faith_reading || null, legitimate_concern:d.legitimate_concern || null,
+    tactics, root_cause:rc, reply:String(d.reply||"").trim(), uncertainty:Array.isArray(d.uncertainty) ? d.uncertainty.map(String) : []};
+}
+function handleErr(e){
+  if (e && e.name === "AbortError") return;
+  const code = e && e.code;
+  if (code === "not_granted"){ $("#go").hidden = true; setStatus("Claude analysis wasn't permitted. The quick scan still works.", true); }
+  else if (code === "rate_limited") setStatus("Claude is busy right now. Wait a minute and try again.", true);
+  else setStatus((e && e.message) ? `Analysis failed: ${e.message}` : "Analysis failed. Try again.", true);
+}
+async function analyse(){
+  const text = $("#msg").value.trim();
+  if (!text){ setStatus("Paste a message first.", true); return; }
+  if (!sampleFn || state.busy) return;
+  ctrl?.abort(); ctrl = new AbortController();
+  state.busy = true; $("#go").disabled = true; setStatus("Analysing…");
+  try{
+    const prompt = buildPrompt(text, $("#ctx").value.trim(), tone());
+    let raw;
+    if (typeof sampleFn.json === "function"){
+      try { raw = await sampleFn.json(prompt, {signal:ctrl.signal, modelTier:"default"}); }
+      catch(e){ if (e && (e.code === "not_granted" || e.code === "rate_limited" || e.name === "AbortError")) throw e;
+        const r = await sampleFn(prompt, {signal:ctrl.signal, modelTier:"default"}); raw = parseJSON(r.text); }
+    } else { const r = await sampleFn(prompt, {signal:ctrl.signal, modelTier:"default"}); raw = parseJSON(r.text); }
+    if (typeof raw === "string") raw = parseJSON(raw);
+    state.claude = normalise(raw, $("#msg").value);
+    state.claude.tone = tone();
+    state.claudeText = $("#msg").value;
+    setStatus("");
+    render();
+  } catch(e){ handleErr(e); }
+  finally { state.busy = false; if (sampleFn) $("#go").disabled = false; }
+}
+async function redraft(){
+  const c = state.claude; if (!c || !sampleFn || state.busy) return;
+  const tn = tone();
+  ctrl?.abort(); ctrl = new AbortController();
+  state.busy = true; setStatus(`Redrafting in ${TONES[tn].label.toLowerCase()} tone…`);
+  const box = $("#reply");
+  const prompt = `Rewrite this draft reply to a workplace message. Tone: ${TONES[tn].label}: ${TONES[tn].desc}.
+Keep the same substance: acknowledge the legitimate concern, ask for evidence or specifics on the key points, keep both people's credibility intact, lower the temperature. Never name an argument tactic, accuse or use sarcasm. 60 to 130 words, British English, start with "Hi [Name],", keep any [square-bracket] placeholders, no sign-off. Return only the reply text.
+
+Original message:
+<<<
+${state.claudeText}
+>>>
+Legitimate concern: ${c.legitimate_concern || "(none identified)"}
+Key points to ask about: ${c.tactics.map(t => BY[t.id].name + " (" + t.quote + ")").join("; ") || "(none)"}
+
+Current draft:
+<<<
+${c.reply}
+>>>`;
+  try{
+    const r = await sampleFn(prompt, {signal:ctrl.signal, modelTier:"quick", onText:({text}) => { if (box) box.textContent = text; }});
+    c.reply = String(r.text || "").trim().replace(/^<<<\s*|\s*>>>$/g, "");
+    c.tone = tn; setStatus(""); render();
+  } catch(e){ handleErr(e); render(); }
+  finally { state.busy = false; }
+}
+
+/* ---------- render ---------- */
+function render(){
+  const text = $("#msg").value;
+  const useClaude = state.claude && state.claudeText !== null;
+  const stale = useClaude && state.claudeText !== text;
+  const R = useClaude ? state.claude : localScan(text);
+  const src = useClaude ? state.claudeText : text;
+  const el = $("#results");
+  if (!text.trim() && !useClaude){
+    el.innerHTML = `<div class="panel"><p class="read">Paste a message to begin.</p><p class="note" style="margin-top:8px">The quick scan highlights likely tactics as you type. Use <b>Load example</b> to see a worked case.</p></div>`;
+    return;
+  }
+  const ranges = [];
+  R.tactics.forEach((f,i) => f.hits.forEach(h => ranges.push({start:h.start, end:h.end, n:i+1, id:f.id})));
+  const tn = tone();
+  const toneMismatch = useClaude && R.tone !== tn;
+  const srcChip = useClaude ? `<span class="chip src">Claude analysis</span>` : `<span class="chip src">Quick scan · keyword patterns</span>`;
+  const likely = R.tactics.filter(t => t.confidence === "likely").length;
+
+  const tacticsHTML = R.tactics.length ? `<ol class="tlist">${R.tactics.map((f,i) => { const t = BY[f.id]; return `
+    <li><span class="num" aria-hidden="true">${i+1}</span><div>
+      <div class="thead"><button class="tname" data-goto="${t.id}" title="Open in field guide">${esc(t.name)}</button><span class="chip ${f.confidence}">${f.confidence}</span></div>
+      <div class="quote">${esc(f.quote)}</div>
+      <p class="expl">${esc(f.explanation)}</p>
+      <p class="move"><b>Response move:</b> ${esc(t.mit)}</p>
+    </div></li>`; }).join("")}</ol>`
+    : `<p class="empty">${useClaude ? "No eristic tactics found. The message reads as a good-faith position, even if it is firm." : "No patterns matched. That is not proof of good faith; run Claude analysis for a closer reading."}</p>`;
+
+  const rc = R.root_cause;
+  const rootHTML = rc ? `<div class="root-main"><strong>${esc(ROOTS[rc.primary].name)}</strong><span class="chip ${rc.confidence==="high"?"likely":"possible"}">${rc.confidence} confidence</span></div>
+    <p class="small">${esc(ROOTS[rc.primary].desc)}</p>
+    ${rc.secondary ? `<p class="small muted" style="margin-top:4px">Also possible: ${esc(ROOTS[rc.secondary].name)}</p>` : ""}
+    ${rc.rationale ? `<p class="small muted" style="margin-top:4px">${esc(rc.rationale)}</p>` : ""}
+    <p class="small" style="margin-top:8px"><b>What helps:</b> ${esc(ROOTS[rc.primary].helps)}</p>`
+    : `<p class="empty">Not enough signal to suggest a root cause.</p>`;
+
+  const gfHTML = useClaude ? `${R.good_faith_reading ? `<p class="small"><b>Charitable reading:</b> ${esc(R.good_faith_reading)}</p>` : ""}
+    <p class="small" style="margin-top:8px"><b>Legitimate concern:</b> ${esc(R.legitimate_concern || "None clearly stated.")}</p>`
+    : `<p class="empty">A good-faith reading and the legitimate concern need judgement about tone and intent. ${sampleFn ? "Run <b>Analyse with Claude</b> for these." : ""}</p>`;
+
+  el.innerHTML = `
+    <div class="panel summary">
+      ${stale ? `<div class="stale">The message has changed since this analysis. Run it again to update.</div>` : ""}
+      <div class="chips">${srcChip}<span class="chip ${R.temperature}"><span class="dot"></span>Temperature: ${R.temperature}</span><span class="chip">${R.tactics.length} tactic${R.tactics.length===1?"":"s"}${R.tactics.length ? ` · ${likely} likely` : ""}</span></div>
+      <p class="read">${esc(R.read)}</p>
+    </div>
+    <div class="panel"><h2 class="sec">Flagged phrases</h2><div class="msg">${highlight(src, ranges)}</div></div>
+    <div class="panel"><h2 class="sec">Tactics</h2>${tacticsHTML}</div>
+    <div class="two">
+      <div class="panel"><h2 class="sec">Likely root cause</h2>${rootHTML}</div>
+      <div class="panel"><h2 class="sec">Good faith</h2>${gfHTML}</div>
+    </div>
+    <div class="panel">
+      <h2 class="sec"><span>Suggested reply · ${esc(TONES[useClaude ? R.tone : tn].label)}</span></h2>
+      <div class="reply-box" id="reply">${esc(R.reply)}</div>
+      <div class="reply-tools">
+        <button class="btn small" id="copy">Copy reply</button>
+        ${toneMismatch ? `<button class="btn small primary" id="redraft">Redraft as ${esc(TONES[tn].label)}</button>` : ""}
+        <span class="status" id="copied" role="status"></span>
+      </div>
+      <p class="note" style="margin-top:8px">${useClaude ? "Fill in the [bracketed] parts and adjust anything Claude couldn't know." : "Assembled from the field guide's response moves. Fill in the [bracketed] parts; Claude analysis writes a reply fitted to the message."}</p>
+    </div>
+    ${R.uncertainty && R.uncertainty.length ? `<div class="panel"><h2 class="sec">Uncertainty</h2><ul class="unc">${R.uncertainty.map(u => `<li>${esc(u)}</li>`).join("")}</ul></div>` : ""}
+  `;
+  $("#copy").onclick = async () => {
+    const t = $("#reply").textContent, out = $("#copied");
+    try { await navigator.clipboard.writeText(t); out.textContent = "Copied"; }
+    catch(e){ const r = document.createRange(); r.selectNodeContents($("#reply")); const s = getSelection(); s.removeAllRanges(); s.addRange(r); out.textContent = "Selected; press Ctrl+C or ⌘C to copy"; }
+    setTimeout(() => out.textContent = "", 3000);
+  };
+  const rd = $("#redraft"); if (rd) rd.onclick = redraft;
+  el.querySelectorAll("[data-goto]").forEach(b => b.onclick = () => openCard(b.dataset.goto));
+}
+
+/* ---------- field guide ---------- */
+const gstate = { root:null, q:"" };
+function renderRoots(){
+  $("#roots").innerHTML = Object.entries(ROOTS).map(([k,v]) =>
+    `<button class="root-card" data-root="${k}" aria-pressed="${gstate.root===k}"><b>${esc(v.name)}</b><span>${esc(v.desc)}</span></button>`).join("");
+  $("#roots").querySelectorAll("[data-root]").forEach(b => b.onclick = () => { gstate.root = gstate.root === b.dataset.root ? null : b.dataset.root; renderRoots(); renderGrid(); });
+}
+function renderGrid(){
+  const q = gstate.q.toLowerCase();
+  const list = T.filter(t => (!gstate.root || t.roots.includes(gstate.root)) &&
+    (!q || [t.name, t.def, t.lineage, t.says.join(" "), t.mit].join(" ").toLowerCase().includes(q)));
+  $("#gcount").textContent = `${list.length} of ${T.length}`;
+  $("#grid").innerHTML = list.map(t => `
+    <article class="card" id="tactic-${t.id}">
+      <h3><span class="no">${String(t.no).padStart(2,"0")}</span>${esc(t.name)}</h3>
+      <p class="lineage">${esc(t.lineage)}</p>
+      <p>${esc(t.def)}</p>
+      <div><span class="k">Sounds like</span><ul class="says">${t.says.map(s => `<li>${esc(s)}</li>`).join("")}</ul></div>
+      <div><span class="k">Likely root cause</span><div class="chips">${t.roots.map((r,i) => `<span class="chip ${i===0?"possible":""}">${esc(ROOTS[r].name)}</span>`).join("")}</div></div>
+      <div class="mit"><span class="k">Mitigation</span><p>${esc(t.mit)}</p></div>
+    </article>`).join("") || `<p class="empty">No tactics match that filter.</p>`;
+}
+function openCard(id){
+  gstate.root = null; gstate.q = ""; $("#q").value = ""; renderRoots(); renderGrid();
+  showView("field-guide");
+  const c = document.getElementById("tactic-" + id);
+  if (c){ c.scrollIntoView({block:"start", behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth"}); c.classList.add("flash"); setTimeout(() => c.classList.remove("flash"), 1600); }
+}
+
+/* ---------- views ---------- */
+function showView(v, fromHash){
+  const guide = v === "field-guide";
+  $("#analyse").hidden = guide; $("#field-guide").hidden = !guide;
+  $("#tab-analyse").setAttribute("aria-selected", String(!guide));
+  $("#tab-guide").setAttribute("aria-selected", String(guide));
+  if (!fromHash){ const h = guide ? "#field-guide" : "#analyse"; if (location.hash !== h) location.hash = h; }
+}
+$("#tab-analyse").onclick = () => showView("analyse");
+$("#tab-guide").onclick = () => showView("field-guide");
+window.addEventListener("hashchange", () => showView(location.hash === "#field-guide" ? "field-guide" : "analyse", true));
+
+/* ---------- wiring ---------- */
+let timer;
+$("#msg").addEventListener("input", () => { clearTimeout(timer); timer = setTimeout(() => { ls.set("oe-draft", $("#msg").value); render(); }, 180); });
+document.querySelectorAll('input[name="tone"]').forEach(r => r.addEventListener("change", () => { ls.set("oe-tone", tone()); render(); }));
+$("#go").onclick = analyse;
+$("#example").onclick = () => { $("#msg").value = EXAMPLE; state.claude = null; state.claudeText = null; setStatus(""); render(); };
+$("#clear").onclick = () => { ctrl?.abort(); $("#msg").value = ""; $("#ctx").value = ""; state.claude = null; state.claudeText = null; ls.set("oe-draft", ""); setStatus(""); render(); };
+$("#msg").addEventListener("keydown", e => { if ((e.ctrlKey || e.metaKey) && e.key === "Enter" && sampleFn) analyse(); });
+
+$("#tcount").textContent = T.length;
+const savedTone = ls.get("oe-tone"); if (savedTone && TONES[savedTone]) document.getElementById("tone-" + savedTone).checked = true;
+const draft = ls.get("oe-draft");
+$("#msg").value = draft && draft.trim() ? draft : EXAMPLE;
+$("#q").addEventListener("input", e => { gstate.q = e.target.value; renderGrid(); });
+renderRoots(); renderGrid(); render();
+showView(location.hash === "#field-guide" ? "field-guide" : "analyse", true);
+connect();
+</script>
+</body>
+</html>
