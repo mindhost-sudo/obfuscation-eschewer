@@ -4,7 +4,7 @@
 
 A single-page web app that reads a workplace email or chat message, spots bad-faith argument tactics, suggests the most likely root cause behind them and drafts a calm, constructive reply.
 
-**Live app:** `https://<your-username>.github.io/obfuscation-eschewer/` *(replace once GitHub Pages is enabled)*
+**Live app:** `[https://github.com/mindhost-sudo/obfuscation-eschewer]` *(replace once GitHub Pages is enabled)*
 
 ---
 
